@@ -10,9 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script>mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });</script>
   <style>
-    /* Desktop-focused notice */
     @media (max-width: 1024px){ body:after{content:"Desktop layout only";position:fixed;bottom:8px;right:8px;background:#b91c1c;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;opacity:.9} }
-    /* Print styles (for PDF) */
     @media print { .no-print { display:none !important; } body { margin: 12mm; } .card { box-shadow: none !important; border: 1px solid #ddd; } }
   </style>
 </head>
@@ -195,8 +193,8 @@
           <label class="flex items-start gap-3 p-3 border rounded-lg hover:bg-emerald-50 cursor-pointer">
             <input class="mt-1" type="radio" name="breach" value="repetitive" />
             <div>
-              <div class="font-medium">4) Repetitive Human Error or At‑Risk Behavior</div>
-              <div class="text-sm text-neutral-600">Is there a series of human errors or continuing at‑risk behavior that make this person an outlier in performance?</div>
+              <div class="font-medium">4) Repetitive Human Error or At-Risk Behavior</div>
+              <div class="text-sm text-neutral-600">Is there a series of human errors or continuing at-risk behavior that make this person an outlier in performance?</div>
             </div>
           </label>
           <label class="flex items-start gap-3 p-3 border rounded-lg hover:bg-emerald-50 cursor-pointer">
@@ -278,7 +276,7 @@ const setActiveTab = (name) => {
   $$('[data-panel]').forEach(p => p.classList.toggle('hidden', p.getAttribute('data-panel')!==name));
   $$('.tab').forEach(t => t.classList.toggle('bg-emerald-100', t.dataset.tab===name));
 };
-const toast = (msg) => { alert(msg); } // simple
+const toast = (msg) => { alert(msg); } // minimal feedback
 
 function newRecord(){ current = defaultState(); currentId=null; syncToUI(); renderReport(); }
 
@@ -437,14 +435,13 @@ function renderAssessment(){
   panel.innerHTML = '';
   const type = current.breach.type;
 
-  if (!type){
-    byId('decisionBox').textContent = '';
+  if(!type){
+    byId('decisionBox').textContent='';
     renderFlow('flowchart','');
     panel.innerHTML = '<div class="text-sm text-neutral-600">Select a breach first.</div>';
     return;
   }
-
-  if (type === 'no_breach'){
+  if(type==='no_breach'){
     byId('decisionBox').textContent = 'No breach selected → proceed to System Test.';
     renderFlow('flowchart', `flowchart TD
 A[No Breach]-->B[Go to System Test]`);
@@ -452,12 +449,11 @@ A[No Breach]-->B[Go to System Test]`);
   }
 
   const key = current.assess.currentKey;
-  if (!key){ // finished
-    byId('decisionBox').textContent = current.assess.decision || '';
+  if(!key){ // finished
+    byId('decisionBox').textContent = current.assess.decision||'';
     renderPathFlow();
     return;
   }
-
   const text = TREES[type].text[key];
   const row = document.createElement('div');
   row.className='flex items-center justify-between border rounded-lg p-3';
@@ -494,29 +490,25 @@ function renderPathFlow(){
   let g = `flowchart TD
 `;
   function esc(s){ return String(s||'').replace(/\[/g,'(').replace(/\]/g,')'); }
-
-  for (let i=0;i<path.length;i++){
+  for(let i=0;i<path.length;i++){
     const n = `N${i}`; const n2 = `N${i+1}`;
     const txt = esc(path[i].q);
     g += `${n}[${txt}]
 `;
-    if (i < path.length - 1){
-      const lbl = path[i].a === 'yes' ? 'Yes' : 'No';
+    if(i<path.length-1){
+      const lbl = path[i].a==='yes'?'Yes':'No';
       g += `${n} -- ${lbl} --> ${n2}
 `;
     }
   }
-
   const lastN = `N${path.length}`;
-  g += `${lastN}[${esc(current.assess.decision || 'Decision')}]
+  g += `${lastN}[${esc(current.assess.decision||'Decision')}]
 `;
-  if (path.length > 0){
-    const lbl = path[path.length-1].a === 'yes' ? 'Yes' : 'No';
+  if(path.length>0){
+    const lbl = path[path.length-1].a==='yes'?'Yes':'No';
     g += `N${path.length-1} -- ${lbl} --> ${lastN}
 `;
   }
-
-  // save into report + render
   current.assess.flowchart = g;
   renderFlow('flowchart', g);
 }
@@ -601,7 +593,11 @@ function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":
 
 // ===================== API (Apps Script) =====================
 async function api(method, payload){
-  const res = await fetch(WEB_APP_URL, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ method, sheet:SHEET_NAME, payload }) });
+  const res = await fetch(WEB_APP_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ method, sheet:SHEET_NAME, payload })
+  });
   const data = await res.json();
   if(!data.ok) throw new Error(data.error||'API error');
   return data;
@@ -610,7 +606,10 @@ async function api(method, payload){
 async function save(){
   readFromUI();
   if(current.breach.type==='no_breach') setActiveTab('system');
-  if(current.system.ok==='no' && !current.system.actionPlan.trim()){ setActiveTab('system'); return toast('Action Plan is required when System Test = No.'); }
+  if(current.system.ok==='no' && !current.system.actionPlan.trim()){
+    setActiveTab('system');
+    return toast('Action Plan is required when System Test = No.');
+  }
   const rec = { id: currentId, data: current };
   const { id } = await api('save', rec);
   currentId = id; toast('Saved'); loadRows();
@@ -638,7 +637,8 @@ async function loadRows(){
 
 async function openRow(id){
   const { record } = await api('get', { id });
-  current = record.data; currentId = record.id; syncToUI(); setActiveTab('event'); renderReport();
+  current = record.data; currentId = record.id;
+  syncToUI(); setActiveTab('event'); renderReport();
 }
 async function delRow(id){
   if(!confirm('Delete this entry?')) return;
@@ -670,7 +670,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $$('.tab').forEach(t=> t.onclick = ()=> setActiveTab(t.dataset.tab));
   setActiveTab('event');
 
-  // Keep data in sync + keep report live
+  // Keep data in sync and keep report live
   $$('#cards input, #cards textarea').forEach(el =>
     el.addEventListener('change', ()=>{ readFromUI(); renderReport(); })
   );
@@ -683,39 +683,20 @@ window.addEventListener('DOMContentLoaded', ()=>{
     }
   };
 
-  // When breach changes, restart the step flow
+  // When breach changes, restart assessment flow
   $$('input[name="breach"]').forEach(el=> el.addEventListener('change', ()=>{
     readFromUI();
     startAssessment();
     renderAssessment();
   }));
 
-  // System prompts (require Action Plan when No)
+  // System prompts toggle
   $$('input[name="sys_ok"]').forEach(el=> el.addEventListener('change', ()=>{ 
     readFromUI(); 
     byId('sys_prompts').classList.toggle('hidden', current.system.ok!=='no'); 
   }));
 
-  // Top-right buttons
-  byId('btnNew').onclick = newRecord;
-  byId('btnSave').onclick = save;
-  byId('btnExportCSV').onclick = exportCSV;
-  byId('btnExportPDF').onclick = ()=> window.print();
-
-  // Previous entries
-  byId('btnRefresh').onclick = loadRows;
-  byId('searchBox').oninput = () => { clearTimeout(window._t); window._t = setTimeout(loadRows, 300); };
-
-  // Boot
-  newRecord(); 
-  loadRows();
-});
-
-  $$('input[name="sys_ok"]').forEach(el=> el.addEventListener('change', ()=>{ 
-    readFromUI(); 
-    byId('sys_prompts').classList.toggle('hidden', current.system.ok!=='no'); 
-  }));
-
+  // Buttons
   byId('btnNew').onclick = newRecord;
   byId('btnSave').onclick = save;
   byId('btnExportCSV').onclick = exportCSV;
@@ -723,9 +704,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
   byId('btnRefresh').onclick = loadRows;
   byId('searchBox').oninput = () => { clearTimeout(window._t); window._t=setTimeout(loadRows,300); };
 
-  newRecord(); loadRows();
+  // Boot
+  newRecord(); 
+  loadRows();
 });
 </script>
-
 </body>
 </html>
