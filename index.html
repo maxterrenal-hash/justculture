@@ -6,9 +6,6 @@
   <title>Just Culture Assessment Tool — Ospital ng Makati</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Mermaid for flowcharts -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <script>mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });</script>
   <style>
     @media (max-width: 1024px){ body:after{content:"Desktop layout only";position:fixed;bottom:8px;right:8px;background:#b91c1c;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;opacity:.9} }
     @media print { .no-print { display:none !important; } body { margin: 12mm; } .card { box-shadow: none !important; border: 1px solid #ddd; } }
@@ -216,10 +213,6 @@
           <div class="text-sm text-neutral-600 mb-1">Derived Decision</div>
           <div id="decisionBox" class="border rounded-lg p-3 bg-neutral-50"></div>
         </div>
-        <div class="mt-6">
-          <h3 class="font-medium mb-2">Flowchart</h3>
-          <div id="flowchart" class="border rounded-lg p-3 overflow-auto"></div>
-        </div>
       </section>
 
       <!-- SYSTEM TAB -->
@@ -265,7 +258,7 @@ const defaultState = () => ({
   },
   inv: { whatHappened:'', normal:'', procedure:'', why:'', riskMgmt:'', comments:'' },
   breach: { type:'', description:'' },
-  assess: { answers: {}, decision:'', flowchart:'' },
+  assess: { answers: {}, decision:'', currentKey:null, path:[] },
   system: { ok:'', staffing:'', equipment:'', training:'', environment:'', it:'', actionPlan:'' }
 });
 
@@ -276,7 +269,7 @@ const setActiveTab = (name) => {
   $$('[data-panel]').forEach(p => p.classList.toggle('hidden', p.getAttribute('data-panel')!==name));
   $$('.tab').forEach(t => t.classList.toggle('bg-emerald-100', t.dataset.tab===name));
 };
-const toast = (msg) => { alert(msg); } // minimal feedback
+const toast = (msg) => { alert(msg); } // simple
 
 function newRecord(){ current = defaultState(); currentId=null; syncToUI(); renderReport(); }
 
@@ -337,7 +330,7 @@ function readFromUI(){
 }
 
 // ===================== ASSESSMENT ENGINE =====================
-// Step-by-step branching. We only show ONE question at a time, advance on answer.
+// Step-by-step branching. We show ONE question at a time, advance on answer.
 const TREES = {
   duty_harm: {
     first: 'purpose',
@@ -352,20 +345,13 @@ const TREES = {
     },
     next(key, A){
       switch(key){
-        case 'purpose':
-          return A.purpose==='yes' ? {done:true, decision:'Consider punitive action'} : {next:'knowingly'};
-        case 'knowingly':
-          return A.knowingly==='yes' ? {next:'lesser_evil'} : {next:'substantial'};
-        case 'lesser_evil':
-          return A.lesser_evil==='yes' ? {done:true, decision:'Support employee in decision'} : {done:true, decision:'Consider remedial/punitive action'};
-        case 'substantial':
-          return A.substantial==='yes' ? {next:'conscious_disregard'} : {done:true, decision:'Do not consider employee action'};
-        case 'conscious_disregard':
-          return A.conscious_disregard==='yes' ? {done:true, decision:'Consider remedial/punitive action'} : {next:'should_have_known'};
-        case 'should_have_known':
-          return A.should_have_known==='yes' ? {next:'choose_behavior'} : {done:true, decision:'Do not consider employee action'};
-        case 'choose_behavior':
-          return A.choose_behavior==='yes' ? {done:true, decision:'Coach employee and conduct at-risk behavior investigation'} : {done:true, decision:'Console employee and conduct human error investigation'};
+        case 'purpose': return A.purpose==='yes' ? {done:true, decision:'Consider punitive action'} : {next:'knowingly'};
+        case 'knowingly': return A.knowingly==='yes' ? {next:'lesser_evil'} : {next:'substantial'};
+        case 'lesser_evil': return A.lesser_evil==='yes' ? {done:true, decision:'Support employee in decision'} : {done:true, decision:'Consider remedial/punitive action'};
+        case 'substantial': return A.substantial==='yes' ? {next:'conscious_disregard'} : {done:true, decision:'Do not consider employee action'};
+        case 'conscious_disregard': return A.conscious_disregard==='yes' ? {done:true, decision:'Consider remedial/punitive action'} : {next:'should_have_known'};
+        case 'should_have_known': return A.should_have_known==='yes' ? {next:'choose_behavior'} : {done:true, decision:'Do not consider employee action'};
+        case 'choose_behavior': return A.choose_behavior==='yes' ? {done:true, decision:'Coach employee and conduct at-risk behavior investigation'} : {done:true, decision:'Console employee and conduct human error investigation'};
       }
     }
   },
@@ -379,14 +365,10 @@ const TREES = {
     },
     next(key, A){
       switch(key){
-        case 'knew_rule':
-          return A.knew_rule==='yes' ? {next:'possible'} : {done:true, decision:'Investigate circumstances leading to failure to know of duty'};
-        case 'possible':
-          return A.possible==='yes' ? {next:'benefit_outweigh'} : {done:true, decision:'Investigate circumstances leading to impossibility'};
-        case 'benefit_outweigh':
-          return A.benefit_outweigh==='yes' ? {done:true, decision:'Support employee for decision to violate rule'} : {next:'good_faith'};
-        case 'good_faith':
-          return A.good_faith==='yes' ? {done:true, decision:'Coach employee and conduct at-risk behavior investigation'} : {done:true, decision:'Consider remedial/punitive action'};
+        case 'knew_rule': return A.knew_rule==='yes' ? {next:'possible'} : {done:true, decision:'Investigate circumstances leading to failure to know of duty'};
+        case 'possible': return A.possible==='yes' ? {next:'benefit_outweigh'} : {done:true, decision:'Investigate circumstances leading to impossibility'};
+        case 'benefit_outweigh': return A.benefit_outweigh==='yes' ? {done:true, decision:'Support employee for decision to violate rule'} : {next:'good_faith'};
+        case 'good_faith': return A.good_faith==='yes' ? {done:true, decision:'Coach employee and conduct at-risk behavior investigation'} : {done:true, decision:'Consider remedial/punitive action'};
       }
     }
   },
@@ -400,14 +382,10 @@ const TREES = {
     },
     next(key, A){
       switch(key){
-        case 'knew_outcome':
-          return A.knew_outcome==='yes' ? {next:'possible'} : {done:true, decision:'Investigate circumstances leading to failure to know of duty'};
-        case 'possible':
-          return A.possible==='yes' ? {next:'benefit_outweigh'} : {done:true, decision:'Investigate circumstances leading to impossibility'};
-        case 'benefit_outweigh':
-          return A.benefit_outweigh==='yes' ? {done:true, decision:'Support employee in decision'} : {next:'acceptable_perf'};
-        case 'acceptable_perf':
-          return A.acceptable_perf==='yes' ? {done:true, decision:'Accept outcome'} : {done:true, decision:'Assist employee in producing better outcomes, or consider punitive action'};
+        case 'knew_outcome': return A.knew_outcome==='yes' ? {next:'possible'} : {done:true, decision:'Investigate circumstances leading to failure to know of duty'};
+        case 'possible': return A.possible==='yes' ? {next:'benefit_outweigh'} : {done:true, decision:'Investigate circumstances leading to impossibility'};
+        case 'benefit_outweigh': return A.benefit_outweigh==='yes' ? {done:true, decision:'Support employee in decision'} : {next:'acceptable_perf'};
+        case 'acceptable_perf': return A.acceptable_perf==='yes' ? {done:true, decision:'Accept outcome'} : {done:true, decision:'Assist employee in producing better outcomes, or consider punitive action'};
       }
     }
   },
@@ -437,23 +415,22 @@ function renderAssessment(){
 
   if(!type){
     byId('decisionBox').textContent='';
-    renderFlow('flowchart','');
     panel.innerHTML = '<div class="text-sm text-neutral-600">Select a breach first.</div>';
     return;
   }
+
   if(type==='no_breach'){
     byId('decisionBox').textContent = 'No breach selected → proceed to System Test.';
-    renderFlow('flowchart', `flowchart TD
-A[No Breach]-->B[Go to System Test]`);
+    panel.innerHTML = '<div class="text-sm text-neutral-600">No further assessment. Proceed to System tab.</div>';
     return;
   }
 
   const key = current.assess.currentKey;
   if(!key){ // finished
     byId('decisionBox').textContent = current.assess.decision||'';
-    renderPathFlow();
     return;
   }
+
   const text = TREES[type].text[key];
   const row = document.createElement('div');
   row.className='flex items-center justify-between border rounded-lg p-3';
@@ -477,46 +454,10 @@ function handleStepAnswer(val){
     current.assess.decision = move.decision;
     byId('assessmentQuestions').innerHTML = '<div class="text-sm text-emerald-800">Assessment complete.</div>';
     byId('decisionBox').textContent = move.decision;
-    renderPathFlow();
   }else{
     current.assess.currentKey = move.next;
     renderAssessment();
   }
-}
-
-function renderPathFlow(){
-  // Build a simple linear path of Q->A nodes ending in Decision
-  const path = current.assess.path || [];
-  let g = `flowchart TD
-`;
-  function esc(s){ return String(s||'').replace(/\[/g,'(').replace(/\]/g,')'); }
-  for(let i=0;i<path.length;i++){
-    const n = `N${i}`; const n2 = `N${i+1}`;
-    const txt = esc(path[i].q);
-    g += `${n}[${txt}]
-`;
-    if(i<path.length-1){
-      const lbl = path[i].a==='yes'?'Yes':'No';
-      g += `${n} -- ${lbl} --> ${n2}
-`;
-    }
-  }
-  const lastN = `N${path.length}`;
-  g += `${lastN}[${esc(current.assess.decision||'Decision')}]
-`;
-  if(path.length>0){
-    const lbl = path[path.length-1].a==='yes'?'Yes':'No';
-    g += `N${path.length-1} -- ${lbl} --> ${lastN}
-`;
-  }
-  current.assess.flowchart = g;
-  renderFlow('flowchart', g);
-}
-
-function renderFlow(containerId, diagram){
-  const el = byId(containerId);
-  el.innerHTML = `<pre class="mermaid">${diagram}</pre>`;
-  mermaid.run();
 }
 
 // ===================== REPORT =====================
@@ -555,22 +496,10 @@ function renderReport(){
       </div>
     </section>
     <section class="border rounded-lg p-4">
-      <h3 class="font-semibold text-emerald-800 mb-2">Investigation</h3>
-      <div class="grid grid-cols-2 gap-2">
-        <div><b>What happened?</b><br>${escapeHTML(c.inv.whatHappened)}</div>
-        <div><b>What normally happens?</b><br>${escapeHTML(c.inv.normal)}</div>
-        <div><b>What does procedure require?</b><br>${escapeHTML(c.inv.procedure)}</div>
-        <div><b>Why did it happen?</b><br>${escapeHTML(c.inv.why)}</div>
-        <div><b>How are the risks managed?</b><br>${escapeHTML(c.inv.riskMgmt)}</div>
-        <div><b>Additional comments:</b><br>${escapeHTML(c.inv.comments)}</div>
-      </div>
-    </section>
-    <section class="border rounded-lg p-4">
       <h3 class="font-semibold text-emerald-800 mb-2">Breach</h3>
       <div><b>Type:</b> ${escapeHTML(breachLabel)}</div>
       <div class="mt-1"><b>Description:</b> ${escapeHTML(c.breach.description)}</div>
       <div class="mt-2"><b>Assessment Decision:</b> ${escapeHTML(c.assess.decision)}</div>
-      <div class="mt-3">${c.assess.flowchart ? `<pre class='mermaid'>${c.assess.flowchart}</pre>`:''}</div>
     </section>
     <section class="border rounded-lg p-4">
       <h3 class="font-semibold text-emerald-800 mb-2">System Test</h3>
@@ -586,7 +515,6 @@ function renderReport(){
         <div class="mt-2"><b>Action Plan:</b><br>${escapeHTML(c.system.actionPlan)}</div>
       `:''}
     </section>`;
-  if(c.assess.flowchart) mermaid.run();
 }
 
 function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
@@ -637,8 +565,7 @@ async function loadRows(){
 
 async function openRow(id){
   const { record } = await api('get', { id });
-  current = record.data; currentId = record.id;
-  syncToUI(); setActiveTab('event'); renderReport();
+  current = record.data; currentId = record.id; syncToUI(); setActiveTab('event'); renderReport();
 }
 async function delRow(id){
   if(!confirm('Delete this entry?')) return;
@@ -670,39 +597,41 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $$('.tab').forEach(t=> t.onclick = ()=> setActiveTab(t.dataset.tab));
   setActiveTab('event');
 
-  // Keep data in sync and keep report live
+  // Keep data in sync + keep report live
   $$('#cards input, #cards textarea').forEach(el =>
     el.addEventListener('change', ()=>{ readFromUI(); renderReport(); })
   );
 
   // Assessment stepper: Yes/No → advance
-  $$('#cards').onchange = (e)=>{ 
+  document.getElementById('cards').onchange = (e)=>{ 
     if (e.target && e.target.name === 'step_answer') {
       handleStepAnswer(e.target.value);
       renderReport();
     }
   };
 
-  // When breach changes, restart assessment flow
+  // When breach changes, restart the step flow
   $$('input[name="breach"]').forEach(el=> el.addEventListener('change', ()=>{
     readFromUI();
     startAssessment();
     renderAssessment();
   }));
 
-  // System prompts toggle
+  // System prompts (require Action Plan when No)
   $$('input[name="sys_ok"]').forEach(el=> el.addEventListener('change', ()=>{ 
     readFromUI(); 
     byId('sys_prompts').classList.toggle('hidden', current.system.ok!=='no'); 
   }));
 
-  // Buttons
+  // Top-right buttons
   byId('btnNew').onclick = newRecord;
   byId('btnSave').onclick = save;
   byId('btnExportCSV').onclick = exportCSV;
   byId('btnExportPDF').onclick = ()=> window.print();
+
+  // Previous entries
   byId('btnRefresh').onclick = loadRows;
-  byId('searchBox').oninput = () => { clearTimeout(window._t); window._t=setTimeout(loadRows,300); };
+  byId('searchBox').oninput = () => { clearTimeout(window._t); window._t = setTimeout(loadRows, 300); };
 
   // Boot
   newRecord(); 
