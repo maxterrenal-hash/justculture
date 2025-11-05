@@ -7,7 +7,13 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @media (max-width: 1024px){ body:after{content:"Desktop layout only";position:fixed;bottom:8px;right:8px;background:#b91c1c;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;opacity:.9} }
+    @media (max-width: 1024px){
+      body:after{
+        content:"Desktop layout only";
+        position:fixed;bottom:8px;right:8px;background:#b91c1c;color:#fff;
+        padding:6px 10px;border-radius:8px;font-size:12px;opacity:.9
+      }
+    }
     @media print { .no-print { display:none !important; } body { margin: 12mm; } .card { box-shadow: none !important; border: 1px solid #ddd; } }
   </style>
 </head>
@@ -249,7 +255,7 @@ const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzdroioRdkjqpZoOAi7
 const SHEET_NAME = 'Cases';
 
 // ===================== STATE =====================
-let current = {}; // in-memory record
+let current = {};     // in-memory record
 let currentId = null; // caseId from sheet
 const defaultState = () => ({
   ev: {
@@ -258,7 +264,7 @@ const defaultState = () => ({
   },
   inv: { whatHappened:'', normal:'', procedure:'', why:'', riskMgmt:'', comments:'' },
   breach: { type:'', description:'' },
-  assess: { answers: {}, decision:'', currentKey:null, path:[] },
+  assess: { answers: {}, decision:'', currentKey:null, path:[], action:'' },
   system: { ok:'', staffing:'', equipment:'', training:'', environment:'', it:'', actionPlan:'' }
 });
 
@@ -330,7 +336,7 @@ function readFromUI(){
 }
 
 // ===================== ASSESSMENT ENGINE =====================
-// Step-by-step branching. We show ONE question at a time, advance on answer.
+// Step-by-step branching. One question at a time; previous answers are editable.
 const TREES = {
   duty_harm: {
     first: 'purpose',
@@ -404,6 +410,7 @@ function startAssessment(){
   const type = current.breach.type;
   current.assess.answers = {};
   current.assess.path = [];
+  current.assess.action = '';
   current.assess.currentKey = TREES[type]?.first || null;
   renderAssessment();
 }
@@ -418,19 +425,43 @@ function renderAssessment(){
     panel.innerHTML = '<div class="text-sm text-neutral-600">Select a breach first.</div>';
     return;
   }
-
   if(type==='no_breach'){
     byId('decisionBox').textContent = 'No breach selected → proceed to System Test.';
     panel.innerHTML = '<div class="text-sm text-neutral-600">No further assessment. Proceed to System tab.</div>';
     return;
   }
 
-  const key = current.assess.currentKey;
-  if(!key){ // finished
-    byId('decisionBox').textContent = current.assess.decision||'';
+  // 1) Show previous steps with editable radios (unique names per step)
+  (current.assess.path||[]).forEach((step, idx)=>{
+    const block = document.createElement('div');
+    block.className = 'flex items-center justify-between border rounded-lg p-3';
+    block.innerHTML = `<div class="pr-4">${step.q}</div>
+      <div class="flex items-center gap-6">
+        <label class="flex items-center gap-2">
+          <input type="radio" name="ass_prev_${idx}" data-index="${idx}" value="yes" ${step.a==='yes'?'checked':''}>
+          <span>Yes</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="radio" name="ass_prev_${idx}" data-index="${idx}" value="no" ${step.a==='no'?'checked':''}>
+          <span>No</span>
+        </label>
+      </div>`;
+    panel.appendChild(block);
+  });
+
+  // 2) If finished, show Action textbox and decision
+  if(!current.assess.currentKey){
+    byId('decisionBox').textContent = current.assess.decision || '';
+    const actionWrap = document.createElement('div');
+    actionWrap.className = 'mt-3';
+    actionWrap.innerHTML = `<label class="block text-sm mb-1">Action</label>
+      <textarea id="ass_action" rows="4" class="w-full p-3 border rounded-lg" placeholder="Document the action to be taken at this endpoint...">${current.assess.action||''}</textarea>`;
+    panel.appendChild(actionWrap);
     return;
   }
 
+  // 3) Render current question (next step)
+  const key = current.assess.currentKey;
   const text = TREES[type].text[key];
   const row = document.createElement('div');
   row.className='flex items-center justify-between border rounded-lg p-3';
@@ -442,22 +473,42 @@ function renderAssessment(){
   panel.appendChild(row);
 }
 
-// handles a single step answer and advances or finishes
 function handleStepAnswer(val){
   const type = current.breach.type; if(!type) return;
   const key = current.assess.currentKey; if(!key) return;
-  const A = current.assess.answers; A[key]=val; // persist
+  const A = current.assess.answers; A[key]=val;
   current.assess.path.push({key, q:TREES[type].text[key], a:val});
   const move = TREES[type].next(key, A);
   if(move.done){
     current.assess.currentKey = null;
     current.assess.decision = move.decision;
-    byId('assessmentQuestions').innerHTML = '<div class="text-sm text-emerald-800">Assessment complete.</div>';
+    byId('assessmentQuestions').innerHTML = '';
+    renderAssessment();
     byId('decisionBox').textContent = move.decision;
   }else{
     current.assess.currentKey = move.next;
     renderAssessment();
   }
+}
+
+function handlePrevAnswer(index, val){
+  const type = current.breach.type; if(!type) return;
+  if(!current.assess.path || index<0 || index>=current.assess.path.length) return;
+  const changedKey = current.assess.path[index].key;
+  current.assess.path[index].a = val;
+  current.assess.answers[changedKey] = val;
+  const removed = current.assess.path.splice(index+1);
+  removed.forEach(s=> delete current.assess.answers[s.key]);
+  const move = TREES[type].next(changedKey, current.assess.answers);
+  if(move.done){
+    current.assess.currentKey = null;
+    current.assess.decision = move.decision;
+  } else {
+    current.assess.currentKey = move.next;
+    current.assess.decision = '';
+  }
+  renderAssessment();
+  byId('decisionBox').textContent = current.assess.decision||'';
 }
 
 // ===================== REPORT =====================
@@ -500,6 +551,18 @@ function renderReport(){
       <div><b>Type:</b> ${escapeHTML(breachLabel)}</div>
       <div class="mt-1"><b>Description:</b> ${escapeHTML(c.breach.description)}</div>
       <div class="mt-2"><b>Assessment Decision:</b> ${escapeHTML(c.assess.decision)}</div>
+      ${(c.assess.path&&c.assess.path.length)?`
+      <div class="mt-3">
+        <table class="min-w-full text-sm border">
+          <thead class="bg-neutral-100 text-neutral-700">
+            <tr><th class="px-2 py-1 text-left">Question</th><th class="px-2 py-1 text-left">Answer</th></tr>
+          </thead>
+          <tbody>
+            ${c.assess.path.map(p=>`<tr class="border-t"><td class="px-2 py-1">${escapeHTML(p.q)}</td><td class="px-2 py-1">${p.a==='yes'?'Yes':'No'}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`:''}
+      ${c.assess.action?`<div class="mt-2"><b>Assessment Action:</b><br>${escapeHTML(c.assess.action)}</div>`:''}
     </section>
     <section class="border rounded-lg p-4">
       <h3 class="font-semibold text-emerald-800 mb-2">System Test</h3>
@@ -587,7 +650,8 @@ function flattenCurrent(){
     firstName:e.firstName, lastName:e.lastName, title:e.title, phone:e.phone, empNo:e.empNo, hireDate:e.hireDate, division:e.division, workLocation:e.workLocation,
     inv_whatHappened:c.inv.whatHappened, inv_normal:c.inv.normal, inv_procedure:c.inv.procedure, inv_why:c.inv.why, inv_riskMgmt:c.inv.riskMgmt, inv_comments:c.inv.comments,
     breach:c.breach.type, breach_desc:c.breach.description,
-    decision:a.decision, system_ok:s.ok, system_actionPlan:s.actionPlan
+    decision:a.decision, assessment_action:a.action,
+    system_ok:s.ok, system_actionPlan:s.actionPlan
   };
 }
 
@@ -602,10 +666,19 @@ window.addEventListener('DOMContentLoaded', ()=>{
     el.addEventListener('change', ()=>{ readFromUI(); renderReport(); })
   );
 
-  // Assessment stepper: Yes/No → advance
-  document.getElementById('cards').onchange = (e)=>{ 
+  // Assessment stepper + editable previous answers + action field
+  document.getElementById('cards').onchange = (e)=>{
     if (e.target && e.target.name === 'step_answer') {
       handleStepAnswer(e.target.value);
+      renderReport();
+    }
+    if (e.target && typeof e.target.name === 'string' && e.target.name.startsWith('ass_prev')) {
+      const idx = parseInt(e.target.dataset.index,10);
+      handlePrevAnswer(idx, e.target.value);
+      renderReport();
+    }
+    if (e.target && e.target.id === 'ass_action') {
+      current.assess.action = e.target.value;
       renderReport();
     }
   };
@@ -634,7 +707,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   byId('searchBox').oninput = () => { clearTimeout(window._t); window._t = setTimeout(loadRows, 300); };
 
   // Boot
-  newRecord(); 
+  newRecord();
   loadRows();
 });
 </script>
