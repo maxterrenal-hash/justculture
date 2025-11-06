@@ -6,35 +6,39 @@
   <title>Just Culture Assessment Tool — Ospital ng Makati</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Base */
-    :root{ --tab-gap: .5rem; }
-    @media print { .no-print { display:none !important; } body { margin: 12mm; } .card { box-shadow: none !important; border: 1px solid #ddd; } }
+    :root{ --tab-gap:.5rem }
+    @media print { .no-print{display:none!important} body{margin:12mm} .card{box-shadow:none!important;border:1px solid #ddd} }
 
-    /* Mobile layout rules (auto) */
-    @media (max-width: 1024px){
-      .mobile-auto .grid-2 { grid-template-columns: 1fr !important; }
-      .mobile-auto .tabbar { grid-template-columns: repeat(6,minmax(7rem,1fr)); overflow-x:auto; gap: var(--tab-gap); -webkit-overflow-scrolling: touch; }
-      .mobile-auto .tabbar .tab { white-space: nowrap; }
-      .mobile-auto .touch-pad > * { padding: .9rem 1rem !important; font-size: 1rem; }
-      .mobile-auto .input-lg { padding: .75rem !important; }
+    /* Mobile auto */
+    @media (max-width:1024px){
+      .mobile-auto .grid-2{grid-template-columns:1fr!important}
+      .mobile-auto .tabbar{grid-template-columns:repeat(6,minmax(7rem,1fr));overflow-x:auto;gap:var(--tab-gap);-webkit-overflow-scrolling:touch}
+      .mobile-auto .tabbar .tab{white-space:nowrap}
+      .mobile-auto .touch-pad>*{padding:.9rem 1rem!important;font-size:1rem}
+      .mobile-auto .input-lg{padding:.75rem!important}
     }
+    /* Manual overrides */
+    .mobile-forced .grid-2{grid-template-columns:1fr!important}
+    .mobile-forced .tabbar{grid-template-columns:repeat(6,minmax(7rem,1fr));overflow-x:auto;gap:var(--tab-gap);-webkit-overflow-scrolling:touch}
+    .mobile-forced .tabbar .tab{white-space:nowrap}
+    .mobile-forced .touch-pad>*{padding:.9rem 1rem!important;font-size:1rem}
+    .mobile-forced .input-lg{padding:.75rem!important}
+    .desktop-forced .grid-2{grid-template-columns:1fr 1fr!important}
+    .desktop-forced .tabbar{grid-template-columns:repeat(6,minmax(0,1fr));overflow:visible}
 
-    /* Forced mobile (manual toggle) */
-    .mobile-forced .grid-2 { grid-template-columns: 1fr !important; }
-    .mobile-forced .tabbar { grid-template-columns: repeat(6,minmax(7rem,1fr)); overflow-x:auto; gap: var(--tab-gap); -webkit-overflow-scrolling: touch; }
-    .mobile-forced .tabbar .tab { white-space: nowrap; }
-    .mobile-forced .touch-pad > * { padding: .9rem 1rem !important; font-size: 1rem; }
-    .mobile-forced .input-lg { padding: .75rem !important; }
+    .card{box-shadow:0 1px 2px rgba(0,0,0,.05)}
 
-    /* Forced desktop (manual toggle) */
-    .desktop-forced .grid-2 { grid-template-columns: 1fr 1fr !important; }
-    .desktop-forced .tabbar { grid-template-columns: repeat(6, minmax(0,1fr)); overflow: visible; }
-
-    /* Card look */
-    .card { box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+    /* Busy bar */
+    #busyBar{position:fixed;top:10px;left:50%;transform:translateX(-50%);
+      background:#065f46;color:#fff;padding:.5rem .75rem;border-radius:.5rem;box-shadow:0 2px 8px rgba(0,0,0,.2);
+      z-index:1000;display:none;font-size:.9rem}
+    #busyBar[data-kind="error"]{background:#b91c1c}
+    #busyBar[data-kind="info"]{background:#065f46}
   </style>
 </head>
 <body class="min-h-screen bg-neutral-50 text-neutral-900 mobile-auto" id="appRoot">
+  <div id="busyBar" data-kind="info">Saving…</div>
+
   <div id="initError" class="hidden fixed top-0 left-0 right-0 z-50 bg-red-700 text-white px-4 py-2 text-sm">
     App init failed. Open the browser console to see the exact error.
   </div>
@@ -59,7 +63,7 @@
           </select>
         </label>
         <button data-action="new" class="px-3 py-2 rounded-lg bg-green-700 text-white hover:bg-green-800">New</button>
-        <button data-action="save" class="px-3 py-2 rounded-lg bg-green-700 text-white hover:bg-green-800">Save</button>
+        <button id="btnSave" data-action="save" class="px-3 py-2 rounded-lg bg-green-700 text-white hover:bg-green-800">Save</button>
         <button data-action="print" class="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Print / PDF</button>
         <button data-action="csv" class="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Export CSV</button>
       </div>
@@ -295,6 +299,23 @@ function setActiveTab(name){
   }
 }
 function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]; }); }
+
+/* ===== Busy bar ===== */
+var _busyCount = 0;
+function setBusy(msg, kind){ // kind: 'info' | 'error'
+  var bar = byId('busyBar'); if(!bar) return;
+  bar.textContent = msg || 'Working…';
+  bar.setAttribute('data-kind', kind||'info');
+  _busyCount++; bar.style.display = 'block';
+}
+function clearBusy(){
+  var bar = byId('busyBar'); if(!bar) return;
+  _busyCount = Math.max(0, _busyCount-1);
+  if(_busyCount===0){ bar.style.display = 'none'; }
+}
+function disableSave(disabled){
+  var b = byId('btnSave'); if(b){ b.disabled = !!disabled; b.classList.toggle('opacity-60', !!disabled); }
+}
 
 /* ===== Config ===== */
 var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzdroioRdkjqpZoOAi70uHw5WP1l9DKHRQeiZAzwwAzg2S-j4g7ae_rFlTHjcgOt32GHw/exec';
@@ -629,35 +650,60 @@ async function api(method, payload){
   return data;
 }
 async function loadRows(){
-  var q = byId('searchBox').value.trim();
-  var out = await api('list', { q:q });
-  var rows = out.rows || [];
-  var tbody = byId('rowsTable'); if(!tbody) return;
-  var html = '';
-  for(var i=0;i<rows.length;i++){
-    var r = rows[i];
-    html += '<tr class="border-b">\
-      <td class="px-2 py-2">'+r.id+'</td>\
-      <td class="px-2 py-2">'+(r.eventDate||'')+'</td>\
-      <td class="px-2 py-2">'+escapeHTML(r.description||'')+'</td>\
-      <td class="px-2 py-2">'+escapeHTML(r.division||'')+'</td>\
-      <td class="px-2 py-2">'+escapeHTML(r.breach||'')+'</td>\
-      <td class="px-2 py-2">\
-        <button data-action="edit" data-id="'+r.id+'" class="text-emerald-700 mr-2">Edit</button>\
-        <button data-action="delete" data-id="'+r.id+'" class="text-red-700">Delete</button>\
-      </td></tr>';
+  try{
+    setBusy('Loading…','info');
+    var q = byId('searchBox').value.trim();
+    var out = await api('list', { q:q });
+    var rows = out.rows || [];
+    var tbody = byId('rowsTable'); if(!tbody) return;
+    var html = '';
+    for(var i=0;i<rows.length;i++){
+      var r = rows[i];
+      html += '<tr class="border-b">\
+        <td class="px-2 py-2">'+r.id+'</td>\
+        <td class="px-2 py-2">'+(r.eventDate||'')+'</td>\
+        <td class="px-2 py-2">'+escapeHTML(r.description||'')+'</td>\
+        <td class="px-2 py-2">'+escapeHTML(r.division||'')+'</td>\
+        <td class="px-2 py-2">'+escapeHTML(r.breach||'')+'</td>\
+        <td class="px-2 py-2">\
+          <button data-action="edit" data-id="'+r.id+'" class="text-emerald-700 mr-2">Edit</button>\
+          <button data-action="delete" data-id="'+r.id+'" class="text-red-700">Delete</button>\
+        </td></tr>';
+    }
+    tbody.innerHTML = html;
+  }catch(err){
+    setBusy('Load failed','error'); setTimeout(clearBusy,1200);
+    console.error('List error:', err);
+    toast('List refresh failed: '+err.message);
+  }finally{
+    clearBusy();
   }
-  tbody.innerHTML = html;
 }
 async function openRow(id){
-  var out = await api('get', { id:id });
-  current = out.record.data; currentId = out.record.id;
-  syncToUI(); setActiveTab('event');
+  try{
+    setBusy('Opening…','info');
+    var out = await api('get', { id:id });
+    current = out.record.data; currentId = out.record.id;
+    syncToUI(); setActiveTab('event');
+  }catch(err){
+    setBusy('Open failed','error'); setTimeout(clearBusy,1200);
+    console.error('Open failed:', err); toast('Open failed: '+err.message);
+  }finally{
+    clearBusy();
+  }
 }
 async function delRow(id){
   if(!confirm('Delete this entry?')) return;
-  await api('delete', { id:id });
-  loadRows();
+  try{
+    setBusy('Deleting…','info');
+    await api('delete', { id:id });
+    loadRows();
+  }catch(err){
+    setBusy('Delete failed','error'); setTimeout(clearBusy,1200);
+    console.error('Delete failed:', err); toast('Delete failed: '+err.message);
+  }finally{
+    clearBusy();
+  }
 }
 async function save(){
   readFromUI();
@@ -666,14 +712,18 @@ async function save(){
     setActiveTab('system'); return toast('Action Plan is required when System Test = No.');
   }
   try{
+    setBusy('Saving…','info'); disableSave(true);
     var rec = { id: currentId, data: current };
     var resp = await api('save', rec);
     currentId = resp.id;
-    toast('Saved');
+    setBusy('Saved','info'); setTimeout(clearBusy,800);
   }catch(err){
-    console.error('Save error:', err); return toast('Save failed: '+err.message);
+    setBusy('Save failed','error'); setTimeout(clearBusy,1500);
+    console.error('Save error:', err); toast('Save failed: '+err.message);
+  }finally{
+    disableSave(false);
   }
-  try{ await loadRows(); }catch(err){ console.error('List error:', err); toast('List refresh failed: '+err.message); }
+  try{ await loadRows(); }catch(err){ /* handled in loadRows */ }
 }
 
 /* ===== Layout mode (auto / mobile / desktop) ===== */
