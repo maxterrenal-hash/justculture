@@ -8,8 +8,6 @@
   <style>
     :root{ --tab-gap:.5rem }
     @media print { .no-print{display:none!important} body{margin:12mm} .card{box-shadow:none!important;border:1px solid #ddd} }
-
-    /* Mobile auto */
     @media (max-width:1024px){
       .mobile-auto .grid-2{grid-template-columns:1fr!important}
       .mobile-auto .tabbar{grid-template-columns:repeat(6,minmax(7rem,1fr));overflow-x:auto;gap:var(--tab-gap);-webkit-overflow-scrolling:touch}
@@ -17,7 +15,6 @@
       .mobile-auto .touch-pad>*{padding:.9rem 1rem!important;font-size:1rem}
       .mobile-auto .input-lg{padding:.75rem!important}
     }
-    /* Manual overrides */
     .mobile-forced .grid-2{grid-template-columns:1fr!important}
     .mobile-forced .tabbar{grid-template-columns:repeat(6,minmax(7rem,1fr));overflow-x:auto;gap:var(--tab-gap);-webkit-overflow-scrolling:touch}
     .mobile-forced .tabbar .tab{white-space:nowrap}
@@ -25,10 +22,7 @@
     .mobile-forced .input-lg{padding:.75rem!important}
     .desktop-forced .grid-2{grid-template-columns:1fr 1fr!important}
     .desktop-forced .tabbar{grid-template-columns:repeat(6,minmax(0,1fr));overflow:visible}
-
     .card{box-shadow:0 1px 2px rgba(0,0,0,.05)}
-
-    /* Busy bar */
     #busyBar{position:fixed;top:10px;left:50%;transform:translateX(-50%);
       background:#065f46;color:#fff;padding:.5rem .75rem;border-radius:.5rem;box-shadow:0 2px 8px rgba(0,0,0,.2);
       z-index:1000;display:none;font-size:.9rem}
@@ -50,9 +44,9 @@
       <div class="min-w-0">
         <h1 class="text-xl md:text-2xl font-bold truncate">Just Culture Assessment Tool</h1>
         <p class="text-xs md:text-sm text-neutral-600">Ospital ng Makati</p>
+        <p id="caseIdBadge" class="text-xs mt-1 text-emerald-700 font-medium"></p>
       </div>
 
-      <!-- Manual layout toggle -->
       <div class="ml-auto no-print flex items-center gap-2 touch-pad">
         <label class="flex items-center gap-2 text-sm">
           <span class="hidden md:inline">Layout:</span>
@@ -85,7 +79,7 @@
         <summary class="cursor-pointer select-none px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-green-900 font-semibold">Previous Entries (View / Edit / Delete)</summary>
         <div class="mt-3 p-3 bg-white border rounded-lg">
           <div class="flex items-center gap-2 mb-3">
-            <input id="searchBox" type="text" placeholder="Search description, location, division…" class="w-full px-3 py-2 border rounded-lg"/>
+            <input id="searchBox" type="text" placeholder="Search ID, description, location, division…" class="w-full px-3 py-2 border rounded-lg"/>
             <button data-action="refresh" class="px-3 py-2 rounded-lg bg-neutral-800 text-white">Refresh</button>
           </div>
           <div class="overflow-auto">
@@ -302,7 +296,7 @@ function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, function(m){ return {
 
 /* ===== Busy bar ===== */
 var _busyCount = 0;
-function setBusy(msg, kind){ // kind: 'info' | 'error'
+function setBusy(msg, kind){
   var bar = byId('busyBar'); if(!bar) return;
   bar.textContent = msg || 'Working…';
   bar.setAttribute('data-kind', kind||'info');
@@ -421,6 +415,7 @@ function syncToUI(){
 
   renderAssessment();
   renderReport();
+  renderCaseIdBadge();
 }
 function readFromUI(){
   current.ev.description = byId('ev_description').value.trim();
@@ -450,6 +445,13 @@ function readFromUI(){
   current.system.it = byId('sys_it').value;
   current.system.policy = byId('sys_policy').value;
   current.system.actionPlan = byId('sys_actionPlan').value;
+}
+
+/* ===== Case ID badge ===== */
+function renderCaseIdBadge(){
+  var el = byId('caseIdBadge');
+  if(!el) return;
+  el.textContent = currentId ? ('Case ID: ' + currentId) : 'New case (ID assigned on Save)';
 }
 
 /* ===== Assessment UI ===== */
@@ -571,6 +573,10 @@ function renderReport(){
 
   R.innerHTML =
   '<section class="border rounded-lg p-4">\
+    <h3 class="font-semibold text-emerald-800 mb-2">Header</h3>\
+    <div><b>Case ID:</b> '+(currentId || '—')+'</div>\
+  </section>\
+  <section class="border rounded-lg p-4">\
     <h3 class="font-semibold text-emerald-800 mb-2">Event Details</h3>\
     <div><b>Description:</b> '+escapeHTML(c.ev.description)+'</div>\
     <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">\
@@ -716,6 +722,7 @@ async function save(){
     var rec = { id: currentId, data: current };
     var resp = await api('save', rec);
     currentId = resp.id;
+    renderCaseIdBadge();
     setBusy('Saved','info'); setTimeout(clearBusy,800);
   }catch(err){
     setBusy('Save failed','error'); setTimeout(clearBusy,1500);
@@ -761,7 +768,7 @@ function wireDelegatedEvents(){
 
     // Top actions
     if(t.dataset && t.dataset.action){
-      if(t.dataset.action==='new') { current = defaultState(); currentId=null; syncToUI(); return; }
+      if(t.dataset.action==='new') { current = defaultState(); currentId=null; syncToUI(); renderCaseIdBadge(); return; }
       if(t.dataset.action==='save'){ save(); return; }
       if(t.dataset.action==='print'){ window.print(); return; }
       if(t.dataset.action==='csv'){ exportCSV(); return; }
@@ -771,7 +778,6 @@ function wireDelegatedEvents(){
     }
   });
 
-  // Form change events (single delegate on main)
   var cards = byId('cards');
   if(cards){
     cards.addEventListener('change', function(e){
@@ -787,7 +793,6 @@ function wireDelegatedEvents(){
       if(t.name==='breach'){ readFromUI(); startAssessment(); renderAssessment(); return; }
       if(t.name==='sys_ok'){ readFromUI(); byId('sys_prompts').classList.toggle('hidden', current.system.ok!=='no'); renderReport(); return; }
 
-      // any other field: keep model + report in sync
       readFromUI(); renderReport();
     });
   }
@@ -801,9 +806,9 @@ function wireDelegatedEvents(){
     setActiveTab('event');
     current = defaultState();
     syncToUI();
+    renderCaseIdBadge();
     loadRows();
 
-    // Live search debounce
     var sb = byId('searchBox');
     if(sb){
       var timer = null;
