@@ -60,7 +60,6 @@
         <button data-action="new" class="px-3 py-2 rounded-lg bg-green-700 text-white hover:bg-green-800">New</button>
         <button id="btnSave" data-action="save" class="px-3 py-2 rounded-lg bg-green-700 text-white hover:bg-green-800">Save</button>
         <button data-action="print" class="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Print / PDF</button>
-        <button data-action="csv" class="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Export CSV</button>
       </div>
     </header>
 
@@ -662,13 +661,6 @@ function flattenCurrent(){
     system_ok:s.ok, system_actionPlan:s.actionPlan, system_policy:s.policy
   };
 }
-function exportCSV(){
-  var flat = flattenCurrent();
-  var headers = Object.keys(flat).join(',');
-  var values = Object.values(flat).map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
-  var blob = new Blob([headers+'\n'+values],{type:'text/csv;charset=utf-8;'});
-  var a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='just-culture-case.csv'; a.click();
-}
 
 /* ===== Backend API (no preflight) ===== */
 async function api(method, payload){
@@ -798,7 +790,6 @@ function wireDelegatedEvents(){
       if(t.dataset.action==='new') { current = defaultState(); currentId=null; syncToUI(); renderCaseIdBadge(); return; }
       if(t.dataset.action==='save'){ save(); return; }
       if(t.dataset.action==='print'){ window.print(); return; }
-      if(t.dataset.action==='csv'){ exportCSV(); return; }
       if(t.dataset.action==='refresh'){ loadRows(); return; }
       if(t.dataset.action==='edit'){ openRow(t.dataset.id); return; }
       if(t.dataset.action==='delete'){ delRow(t.dataset.id); return; }
